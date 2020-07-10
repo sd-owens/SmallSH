@@ -3,7 +3,7 @@
 
 int main ()
 {
-
     init();
 
+    exit(EXIT_SUCCESS);
 }
