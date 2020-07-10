@@ -14,6 +14,7 @@ void print_array(int argc, char *argv[])
     for (int i = 0; i < argc; i++)
     {
         fprintf(stdout, "argv[%d] = %s\n", i, argv[i]);
+        fflush(stdout);
     }
     
 }
@@ -22,8 +23,43 @@ void print_array(int argc, char *argv[])
 int welcome()
 {
     fprintf(stdout, "Welcome to S2: Small Shell\n");
-    fprintf(stdout, ":\n");
+    fprintf(stdout, ": ");
+    fflush(stdout);
    
+
+}
+
+int command(int argc, char *argv[])
+{
+    int childStatus;
+    pid_t spawnPid = fork();
+
+    switch(spawnPid)
+    {
+        // fork() returns -1 if it fails to spawn a new child
+        case -1:
+            perror("fork() failed!");
+            exit(EXIT_FAILURE);
+            break;
+        // spawn id is 0 in the child process.   
+        case 0:
+            printf("Fork successful, CHILD(%d) running\n", getpid());
+
+            execlp(argv[0], argv[0], "-al", NULL);
+            perror("execlp");
+            exit(EXIT_FAILURE);
+            break;
+        default:
+
+            if(strcmp(argv[argc - 1], "&") != 0)
+                spawnPid = waitpid(spawnPid, &childStatus, 0);
+            
+            //TODO need function to wait for background processes to complete.
+            printf("PARENT(%d): child(%d) terminated.  Exiting\n", getpid(), spawnPid);
+            exit(EXIT_SUCCESS);
+            break;
+    }
+
 
 }
 
@@ -53,42 +89,13 @@ int run()
 
     print_array(argc, argv);
 
+    command(argc, argv);
+
     free(input);
     
 
 
 }
-
-// int command(int argc, char *argv[])
-// {
-//     int childStatus;
-//     pid_t spawnPid = fork();
-
-//     switch(spawnPid)
-//     {
-//         // fork() returns -1 if it fails to spawn a new child
-//         case -1:
-//             perror("fork() failed!");
-//             exit(EXIT_FAILURE);
-//             break;
-//         // spawn id is 0 in the child process.   
-//         case 0:
-//             printf("Fork successful, CHILD(%d) running\n", getpid());
-
-//             execlp(commmand, command, "-al", NULL);
-//             perror("execlp");
-//             exit(EXIT_FAILURE);
-//             break;
-//         default:
-//             run();
-//             spawnPid = waitpid(spawnPid, &childStatus, 0);
-//             printf("PARENT(%d): child(%d) terminated.  Exiting\n", getpid(), spawnPid);
-//             exit(EXIT_SUCCESS);
-//             break;
-//     }
-
-
-// }
 
 
 int init()
