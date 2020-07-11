@@ -29,7 +29,7 @@ int welcome()
 
 }
 
-int command(int argc, char *argv[])
+int execute( char *argv[] )
 {
     int childStatus;
     pid_t spawnPid = fork();
@@ -44,16 +44,18 @@ int command(int argc, char *argv[])
         // spawn id is 0 in the child process.   
         case 0:
             printf("Fork successful, CHILD(%d) running\n", getpid());
+            fflush(stdout);
 
-            execlp(argv[0], argv[0], "-al", NULL);
-            perror("execlp");
+            execvp(argv[0], argv);
+            perror("execvp");
             exit(EXIT_FAILURE);
             break;
         default:
 
-            if(strcmp(argv[argc - 1], "&") != 0)
-                spawnPid = waitpid(spawnPid, &childStatus, 0);
-            
+            // if(strcmp(argv[argc - 1], "&") != 0)
+            //     spawnPid = waitpid(spawnPid, &childStatus, 0);
+            spawnPid = waitpid(spawnPid, &childStatus, 0);
+
             //TODO need function to wait for background processes to complete.
             printf("PARENT(%d): child(%d) terminated.  Exiting\n", getpid(), spawnPid);
             exit(EXIT_SUCCESS);
@@ -63,18 +65,32 @@ int command(int argc, char *argv[])
 
 }
 
+int freeMem()
+{
+
+}
+
+int parse(char *input, char *argv[])
+{
+
+
+
+}
+
+
 int run()
 {
     size_t nbytes = 2048;
     char* input = malloc(nbytes);
-    int argc = 0, max_args = 512;
-    int arg_size = 64;
-    char* argv[max_args];
+    int argc = 0, arg_size = 64;
+    char* argv[512];
 
-    getline(&input, &nbytes, stdin);    // might need to change to newfd    
+    getline(&input, &nbytes, stdin);    // might need to change to newfd  
 
-    argv[argc] = (char *) malloc(sizeof(char) * arg_size);
-    assert(argv[argc] != NULL);
+    strtok(input, "\n");  // strip off newline char from end of user input.
+
+    argv[0] = (char *) malloc(sizeof(char) * arg_size);
+    assert(*argv != NULL);
 
     argv[argc] = strtok(input, " ");  // break up user input into tokens seperate by spaces.
 
@@ -87,9 +103,12 @@ int run()
 
     }
 
-    print_array(argc, argv);
+    // set last char* to NULL for passing to execvp
+    argv[argc] = NULL;  
 
-    command(argc, argv);
+    //print_array(argc, argv);
+
+    execute(argv);
 
     free(input);
     
