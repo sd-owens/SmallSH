@@ -62,7 +62,7 @@ int execute( char *argv[] )
 {
     int childStatus;
 
-    if(strcmp(argv[0], "cd") == 0)
+    if(strcmp(argv[0], "cd") == 0 || strcmp(argv[0], "chdir") == 0)
     {
         //TODO add call to internal cd comment here.
         changeDir(argv);
