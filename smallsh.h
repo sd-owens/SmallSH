@@ -23,7 +23,19 @@ void print_array(int argc, char *argv[])
 
 int welcome()
 {
-    fprintf(stdout, "Welcome to S2: Small Shell\n");
+    system("clear");
+
+    fprintf(stdout, "\nWelcome to:\n");   
+
+    fprintf(stdout, " _____                 _ _   _____ _          _ _\n" 
+                    "/  ___|               | | | /  ___| |        | | |\n"
+                    "\\ `--. _ __ ___   __ _| | | \\ `--.| |__   ___| | |\n"
+                    " `--. \\ '_ ` _ \\ / _` | | |  `--. \\ '_ \\ / _ \\ | |\n"
+                    "/\\__/ / | | | | | (_| | | | /\\__/ / | | |  __/ | |\n"
+                    "\\____/|_| |_| |_|\\__,_|_|_| \\____/|_| |_|\\___|_|_|\n");
+                                                  
+    fprintf(stdout, "\nA lighter shell, similar to the Bourne Again SHell!\n\n");                                             
+
     fflush(stdout);
 }
 
@@ -48,9 +60,8 @@ int execute( char *argv[] )
                 break;
             // spawn id is 0 in the child process.   
             case 0:
-                printf("Fork successful, CHILD(%d) running\n", getpid());
-                fflush(stdout);
-
+                // printf("Fork successful, CHILD(%d) running\n", getpid());
+                // fflush(stdout);
                 execvp(argv[0], argv);
                 perror("execvp");
                 exit(EXIT_FAILURE);
@@ -119,7 +130,7 @@ int run()
         //print_array(argc, argv);
 
         execute(argv);
-        
+
         //reset argc for next iteration
         argc = 0;
     }
