@@ -1,12 +1,16 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
+#include <fcntl.h>
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#define OPEN_FLAGS  (O_RDWR | O_CREAT | O_TRUNC)
+#define FILE_PERMS  (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)  /* rw-rw-rw- */
 
 
 void print_array(int argc, char *argv[])
@@ -57,6 +61,43 @@ int changeDir(char *argv[])
     }
 
 }
+//TODO needs to handle input redirection
+void redirectInput(char *argv[])
+{
+    // int targetFD = open(argv[2], OPEN_FLAGS, FILE_PERMS);
+
+    // if(targetFD == -1)
+    // {
+    //     perror("open()");
+    //     exit(1);
+    // }
+
+    // int output = dup2(targetFD, 1);  //redirect stdout to write to targetFD  
+    // if (output == -1) {
+    //     perror("dup2"); 
+    //     exit(2); 
+    // }
+
+}
+
+void redirectOutput(char *argv[])
+{
+
+    int targetFD = open(argv[2], OPEN_FLAGS, FILE_PERMS);
+
+    if(targetFD == -1)
+    {
+        perror("open()");
+        exit(1);
+    }
+
+    int output = dup2(targetFD, 1);  //redirect stdout to write to targetFD  
+    if (output == -1) {
+        perror("dup2"); 
+        exit(2); 
+    }
+
+}
 
 int execute( char *argv[] )
 {
@@ -64,7 +105,6 @@ int execute( char *argv[] )
 
     if(strcmp(argv[0], "cd") == 0 || strcmp(argv[0], "chdir") == 0)
     {
-        //TODO add call to internal cd comment here.
         changeDir(argv);
     }
     else
@@ -78,10 +118,20 @@ int execute( char *argv[] )
                 perror("fork() failed!");
                 exit(EXIT_FAILURE);
                 break;
+
             // spawn id is 0 in the child process.   
             case 0:
-                // printf("Fork successful, CHILD(%d) running\n", getpid());
-                // fflush(stdout);
+                // setup redirection of child before calling exec()
+                if(argv[1] != NULL && strcmp(argv[1], ">") == 0)
+                {
+                    redirectOutput(argv);
+                    argv[1] = NULL;  // replace > with NULL for execvp()
+                } 
+                else if (argv[1] != NULL && strcmp(argv[1], "<") == 0)
+                {
+                    redirectInput(argv);
+                    argv[1] = NULL;  // replace > with NULL for execvp()
+                }
                 execvp(argv[0], argv);
                 perror("execvp");
                 exit(EXIT_FAILURE);
