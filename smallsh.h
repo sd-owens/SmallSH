@@ -39,6 +39,25 @@ int welcome()
     fflush(stdout);
 }
 
+int changeDir(char *argv[])
+{
+
+    if(argv[1] == NULL || strcmp(argv[1], "~") == 0)
+        argv[1] = getenv("HOME");
+
+    int status = chdir(argv[1]);
+
+    switch(status)
+    {
+        case -1:
+            perror("invalid path");
+            break;
+        default:
+            return 0;
+    }
+
+}
+
 int execute( char *argv[] )
 {
     int childStatus;
@@ -46,6 +65,7 @@ int execute( char *argv[] )
     if(strcmp(argv[0], "cd") == 0)
     {
         //TODO add call to internal cd comment here.
+        changeDir(argv);
     }
     else
     {
