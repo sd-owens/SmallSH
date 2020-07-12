@@ -159,10 +159,58 @@ int run()
     
 }
 
+void handle_SIGINT(int signo)
+{
+    //char* message = "termindated by process \n";
+    char message[40];
+
+    sprintf(message, "terminated by signal %d\n", signo);
+
+    write(STDOUT_FILENO, message, 40);
+    raise(SIGUSR2);
+    sleep(10);
+}
+
+void handle_SIGUSR2(int signo){
+	char* message = "Caught SIGUSR2, exiting!\n";
+	write(STDOUT_FILENO, message, 26);
+	exit(0);
+}
+
 
 int init()
 {
-    
+    // Setup Custom Single Handlers for Small Shell Program (Parent Process Only)
+    struct sigaction SIGINT_action = {0}, 
+                     SIGUSR2_action = {0},
+                     ignore_action = {0};
+
+    // Fill out the SIGINT_action struct
+    // Register handle_SIGINT as the signal handler
+	SIGINT_action.sa_handler = handle_SIGINT;
+    // Block all catchable signals while handle_SIGINT is running
+	sigfillset(&SIGINT_action.sa_mask);
+    // No flags set
+	SIGINT_action.sa_flags = 0;
+    sigaction(SIGINT, &SIGINT_action, NULL);
+
+    // Fill out the SIGUSR2_action struct
+    // Register handle_SIGUSR2 as the signal handler
+	SIGUSR2_action.sa_handler = handle_SIGUSR2;
+    // Block all catchable signals while handle_SIGUSR2 is running
+	sigfillset(&SIGUSR2_action.sa_mask);
+    // No flags set
+	SIGUSR2_action.sa_flags = 0;
+    sigaction(SIGUSR2, &SIGUSR2_action, NULL);
+
+    // The ignore_action struct as SIG_IGN as its signal handler
+	ignore_action.sa_handler = SIG_IGN;
+
+    // Register the ignore_action as the handler for SIGTERM, SIGHUP, SIGQUIT. So all three of these signals will be ignored.
+	sigaction(SIGTERM, &ignore_action, NULL);
+	sigaction(SIGHUP, &ignore_action, NULL);
+	sigaction(SIGQUIT, &ignore_action, NULL);
+
     welcome();
     run();
 
