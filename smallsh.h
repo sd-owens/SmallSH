@@ -12,7 +12,7 @@
 #define OPEN_FLAGS  (O_RDWR | O_CREAT | O_TRUNC)
 #define FILE_PERMS  (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)  /* rw-rw-rw- */
 
-bool allowBackground = true;
+static volatile sig_atomic_t allowBackground = 1;
 
 void print_array(int argc, char *argv[])
 {
@@ -24,6 +24,19 @@ void print_array(int argc, char *argv[])
     }
     
 }
+
+void print_exit_status(int child_status)
+{
+	
+	if (WIFEXITED(child_status)) {
+		// exited by status
+		printf("exit value %d\n", WEXITSTATUS(child_status));
+	} else {
+		// terminated by signal
+		printf("terminated by signal %d\n", WTERMSIG(child_status));
+	}
+}
+
 
 
 int welcome()
@@ -100,8 +113,9 @@ void redirectOutput(char *argv[])
 
 }
 
-int execute( char *argv[], struct sigaction sa )
+int execute( char *argv[], bool background, struct sigaction sa )
 {
+
     int childStatus;
 
     if(strcmp(argv[0], "cd") == 0 || strcmp(argv[0], "chdir") == 0)
@@ -123,6 +137,7 @@ int execute( char *argv[], struct sigaction sa )
             // spawn id is 0 in the child process.   
             case 0:
 
+                // set child signal handler for SIGINT to default values.
                 sa.sa_handler = SIG_DFL;
                 sigaction(SIGINT, &sa, NULL);
 
@@ -144,12 +159,29 @@ int execute( char *argv[], struct sigaction sa )
 
             default:
 
-                spawnPid = waitpid(spawnPid, &childStatus, 0);
-                //TODO need function to wait for background processes to complete.
-                //printf("PARENT(%d): child(%d) terminated.  Exiting\n", getpid(), spawnPid);
-                break;
+                if(background && allowBackground)
+                {
+                    pid_t actualPid = waitpid(spawnPid, &childStatus, WNOHANG);
+                    printf("background pid is %d\n", spawnPid);
+				    fflush(stdout);
+                }
+                else 
+                {
+                    pid_t actualPid = waitpid(spawnPid, &childStatus, 0);
+                }
+                   
+           
+
+            // Check for terminated child background processes.    
+            while ((spawnPid = waitpid(-1, &childStatus, WNOHANG)) > 0)
+            {
+                printf("child %d terminated\n", spawnPid);
+                print_exit_status(childStatus);
+                fflush(stdout);
+            }
         }
     }
+
 
     return(0);
 }
@@ -175,7 +207,7 @@ int run(struct sigaction sa_sigint)
     char* input = malloc(nbytes);
     int argc = 0, arg_size = 64;
     char* argv[512];
-    bool loop = true;
+    bool loop = true, background = false;
 
     while(loop)
     {
@@ -211,10 +243,14 @@ int run(struct sigaction sa_sigint)
                 argv[argc] = strtok(NULL, " ");
 
             }
+                // check if command should be run in the background and set flag
+                if(strcmp(argv[argc - 1], "&") == 0)
+                    background = true;
+
                 // set last char* to NULL for passing to execvp
                 argv[argc] = NULL;  
                 //print_array(argc, argv);
-                execute(argv, sa_sigint);
+                execute(argv, background, sa_sigint);
         }
         //reset argc for next iteration
         argc = 0;
@@ -226,21 +262,22 @@ int run(struct sigaction sa_sigint)
 
 void handle_SIGTSTP(int signo)
 {
-    if(allowBackground == true)
+
+    char *message;
+
+    if(allowBackground == 1)
     {
-        char message[36];
-        sprintf(message, "Foreground-Only Mode (& is ignored)\n");
-        write(STDOUT_FILENO, message, 36);
+        message = "\nEntering foreground-only mode (& is now ignored)\n";
+        write(STDOUT_FILENO, message, 50);
         fflush(stdout);
-        allowBackground == false;
+        allowBackground = 0;
     } 
     else 
     {
-        char message[30];
-        sprintf(message, "Foreground-Only Mode Disabled\n");
+        message = "\nExiting foreground-only mode\n";
         write(STDOUT_FILENO, message, 30);
         fflush(stdout);
-        allowBackground == true;
+        allowBackground = 1;
     }
 }
 
@@ -265,9 +302,6 @@ void handle_SIGUSR2(int signo){
 
 int init()
 {
-    // Setup Custom Single Handlers for Small Shell Program (Parent Process Only)
-    struct sigaction ignore_action = {0};
-
     // Redirct ctrl-C to handle_SIGINT
     struct sigaction SIGINT_action = {0};
 	SIGINT_action.sa_handler = handle_SIGINT;
@@ -275,24 +309,20 @@ int init()
 	SIGINT_action.sa_flags = 0;
     sigaction(SIGINT, &SIGINT_action, NULL);
 
-    // Programmer specified handler
+    // Programmer specified handle_SIGUSR2
     struct sigaction SIGUSR2_action = {0};    
 	SIGUSR2_action.sa_handler = handle_SIGUSR2;
 	sigfillset(&SIGUSR2_action.sa_mask);
 	SIGUSR2_action.sa_flags = 0;
     sigaction(SIGUSR2, &SIGUSR2_action, NULL);
 
-    // The ignore_action struct as SIG_IGN as its signal handler
-	ignore_action.sa_handler = SIG_IGN;
-	sigaction(SIGHUP, &ignore_action, NULL);
-	sigaction(SIGQUIT, &ignore_action, NULL);
-
     // Redict ctrl-Z to handle_SIGSTP
-    struct sigaction sa_sigtstp = {0};
-    sa_sigtstp.sa_handler = handle_SIGTSTP;
-	sigfillset(&sa_sigtstp.sa_mask);
-	sa_sigtstp.sa_flags = 0;
-	sigaction(SIGTSTP, &sa_sigtstp, NULL);
+    struct sigaction SIGTSTP_action = {0};
+    //memset(&SIGTSTP_action, 0, sizeof(SIGTSTP_action));
+    SIGTSTP_action.sa_handler = handle_SIGTSTP;
+	sigfillset(&SIGTSTP_action.sa_mask);
+	SIGTSTP_action.sa_flags = 0;
+	sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
     welcome();
     run(SIGINT_action);
