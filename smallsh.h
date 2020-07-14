@@ -12,6 +12,7 @@
 #define OPEN_FLAGS  (O_RDWR | O_CREAT | O_TRUNC)
 #define FILE_PERMS  (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)  /* rw-rw-rw- */
 
+bool allowBackground = true;
 
 void print_array(int argc, char *argv[])
 {
@@ -99,7 +100,7 @@ void redirectOutput(char *argv[])
 
 }
 
-int execute( char *argv[] )
+int execute( char *argv[], struct sigaction sa )
 {
     int childStatus;
 
@@ -121,6 +122,10 @@ int execute( char *argv[] )
 
             // spawn id is 0 in the child process.   
             case 0:
+
+                sa.sa_handler = SIG_DFL;
+                sigaction(SIGINT, &sa, NULL);
+
                 // setup redirection of child before calling exec()
                 if(argv[1] != NULL && strcmp(argv[1], ">") == 0)
                 {
@@ -164,14 +169,15 @@ int parse(char *input, char *argv[])
 }
 
 
-int run()
+int run(struct sigaction sa_sigint)
 {
     size_t nbytes = 2048;
     char* input = malloc(nbytes);
     int argc = 0, arg_size = 64;
     char* argv[512];
+    bool loop = true;
 
-    while(true)
+    while(loop)
     {
         fprintf(stdout, ": ");
         fflush(stdout);
@@ -185,28 +191,56 @@ int run()
 
         argv[argc] = strtok(input, " ");  // break up user input into tokens seperate by spaces.
 
-        while (argv[argc] != NULL)
+        // skip lines with comments or blank lines.
+        if(argv[0] == "#" || argv[0] == "\0")
         {
-            argc++;
-            argv[argc] = (char *) malloc(sizeof(char) * arg_size);
-            assert(argv[argc] != NULL);
-            argv[argc] = strtok(NULL, " ");
-
+            continue;
         }
+        else if (strcmp(argv[0], "exit") == 0)
+        {
+            loop = false;
+        }
+        else 
+        {
+            while (argv[argc] != NULL)
+            {
+                argc++;
+                argv[argc] = (char *) malloc(sizeof(char) * arg_size);
+                assert(argv[argc] != NULL);
+                argv[argc] = strtok(NULL, " ");
 
-        // set last char* to NULL for passing to execvp
-        argv[argc] = NULL;  
-
-        //print_array(argc, argv);
-
-        execute(argv);
-
+            }
+                // set last char* to NULL for passing to execvp
+                argv[argc] = NULL;  
+                //print_array(argc, argv);
+                execute(argv, sa_sigint);
+        }
         //reset argc for next iteration
         argc = 0;
     }
     
     free(input);
     
+}
+
+void handle_SIGTSTP(int signo)
+{
+    if(allowBackground == true)
+    {
+        char message[36];
+        sprintf(message, "Foreground-Only Mode (& is ignored)\n");
+        write(STDOUT_FILENO, message, 36);
+        fflush(stdout);
+        allowBackground == false;
+    } 
+    else 
+    {
+        char message[30];
+        sprintf(message, "Foreground-Only Mode Disabled\n");
+        write(STDOUT_FILENO, message, 30);
+        fflush(stdout);
+        allowBackground == true;
+    }
 }
 
 void handle_SIGINT(int signo)
@@ -231,37 +265,35 @@ void handle_SIGUSR2(int signo){
 int init()
 {
     // Setup Custom Single Handlers for Small Shell Program (Parent Process Only)
-    struct sigaction SIGINT_action = {0}, 
-                     SIGUSR2_action = {0},
-                     ignore_action = {0};
+    struct sigaction ignore_action = {0};
 
-    // Fill out the SIGINT_action struct
-    // Register handle_SIGINT as the signal handler
+    // Redirct ctrl-C to handle_SIGINT
+    struct sigaction SIGINT_action = {0};
 	SIGINT_action.sa_handler = handle_SIGINT;
-    // Block all catchable signals while handle_SIGINT is running
 	sigfillset(&SIGINT_action.sa_mask);
-    // No flags set
 	SIGINT_action.sa_flags = 0;
     sigaction(SIGINT, &SIGINT_action, NULL);
 
-    // Fill out the SIGUSR2_action struct
-    // Register handle_SIGUSR2 as the signal handler
+    // Programmer specified handler
+    struct sigaction SIGUSR2_action = {0};    
 	SIGUSR2_action.sa_handler = handle_SIGUSR2;
-    // Block all catchable signals while handle_SIGUSR2 is running
 	sigfillset(&SIGUSR2_action.sa_mask);
-    // No flags set
 	SIGUSR2_action.sa_flags = 0;
     sigaction(SIGUSR2, &SIGUSR2_action, NULL);
 
     // The ignore_action struct as SIG_IGN as its signal handler
 	ignore_action.sa_handler = SIG_IGN;
-
-    // Register the ignore_action as the handler for SIGTERM, SIGHUP, SIGQUIT. So all three of these signals will be ignored.
-	sigaction(SIGTERM, &ignore_action, NULL);
 	sigaction(SIGHUP, &ignore_action, NULL);
 	sigaction(SIGQUIT, &ignore_action, NULL);
 
+    // Redict ctrl-Z to handle_SIGSTP
+    struct sigaction sa_sigtstp = {0};
+    sa_sigtstp.sa_handler = handle_SIGTSTP;
+	sigfillset(&sa_sigtstp.sa_mask);
+	sa_sigtstp.sa_flags = 0;
+	sigaction(SIGTSTP, &sa_sigtstp, NULL);
+
     welcome();
-    run();
+    run(SIGINT_action);
 
 }
