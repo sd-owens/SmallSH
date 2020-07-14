@@ -192,12 +192,13 @@ int run(struct sigaction sa_sigint)
         argv[argc] = strtok(input, " ");  // break up user input into tokens seperate by spaces.
 
         // skip lines with comments or blank lines.
-        if(argv[0] == "#" || argv[0] == "\0")
+        if(strcmp(argv[0], "#") == 0 || strcmp(argv[0], "\n") == 0)
         {
             continue;
         }
         else if (strcmp(argv[0], "exit") == 0)
         {
+            //TODO needs to check for background processes and kill them.
             loop = false;
         }
         else 
