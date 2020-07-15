@@ -312,7 +312,7 @@ int init()
     struct sigaction SIGINT_action = {0};
 	SIGINT_action.sa_handler = handle_SIGINT;
 	sigfillset(&SIGINT_action.sa_mask);
-	SIGINT_action.sa_flags = 0;
+	SIGINT_action.sa_flags = SA_RESTART;
     sigaction(SIGINT, &SIGINT_action, NULL);
 
     // Programmer specified handle_SIGUSR2
@@ -327,7 +327,7 @@ int init()
     //memset(&SIGTSTP_action, 0, sizeof(SIGTSTP_action));
     SIGTSTP_action.sa_handler = handle_SIGTSTP;
 	sigfillset(&SIGTSTP_action.sa_mask);
-	SIGTSTP_action.sa_flags = 0;
+	SIGTSTP_action.sa_flags = SA_RESTART;
 	sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
     welcome();
