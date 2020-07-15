@@ -37,6 +37,39 @@ void print_exit_status(int child_status)
 	}
 }
 
+void handle_SIGTSTP(int signo)
+{
+
+    char *message;
+
+    if(allowBackground == true)
+    {
+        allowBackground = false;
+        message = "\nEntering foreground-only mode (& is now ignored)\n: ";
+        write(STDOUT_FILENO, message, 52);
+        fflush(stdout);
+        
+    } 
+    else 
+    {
+        allowBackground = true;
+        message = "\nExiting foreground-only mode\n: ";
+        write(STDOUT_FILENO, message, 32);
+        fflush(stdout);
+        
+    }
+}
+
+void handle_SIGINT(int signo)
+{
+    //char* message = "termindated by process \n";
+    char message[40];
+
+    sprintf(message, "terminated by signal %d\n", signo);
+
+    write(STDOUT_FILENO, message, 40);
+}
+
 
 
 int welcome()
@@ -113,7 +146,7 @@ void redirectOutput(char *argv[])
 
 }
 
-int execute( char *argv[], bool background, int *exit_status, struct sigaction sa )
+int execute( char *argv[], bool background, int *exit_status, struct sigaction *SIGINT_action)
 {
 
     int childStatus;
@@ -137,9 +170,11 @@ int execute( char *argv[], bool background, int *exit_status, struct sigaction s
             // spawn id is 0 in the child process.   
             case 0:
 
-                // set child signal handler for SIGINT to default values.
-                sa.sa_handler = SIG_DFL;
-                sigaction(SIGINT, &sa, NULL);
+                // Reset child signal handler for SIGINT to default values.
+	            SIGINT_action->sa_handler = handle_SIGINT;
+	            //sigfillset((SIGINT_action->sa_mask));
+	            SIGINT_action->sa_flags = SA_RESTART;
+                sigaction(SIGINT, SIGINT_action, NULL);
 
                 // setup redirection of child before calling exec()
                 if(argv[1] != NULL && strcmp(argv[1], ">") == 0)
@@ -201,7 +236,7 @@ int parse(char *input, char *argv[])
 }
 
 
-int run(struct sigaction sa_sigint)
+int run(struct sigaction *SIGINT_action)
 {
     size_t nbytes = 2048;
     char* input = malloc(nbytes);
@@ -257,7 +292,7 @@ int run(struct sigaction sa_sigint)
                 // set last char* to NULL for passing to execvp
                 argv[argc] = NULL;  
                 //print_array(argc, argv);
-                execute(argv, background, &exit_status, sa_sigint);
+                execute(argv, background, &exit_status, SIGINT_action);
         }
         //reset argc for next iteration
         argc = 0;
@@ -271,45 +306,14 @@ int run(struct sigaction sa_sigint)
     
 }
 
-void handle_SIGTSTP(int signo)
-{
 
-    char *message;
-
-    if(allowBackground == true)
-    {
-        allowBackground = false;
-        message = "\nEntering foreground-only mode (& is now ignored)\n: ";
-        write(STDOUT_FILENO, message, 52);
-        fflush(stdout);
-        
-    } 
-    else 
-    {
-        allowBackground = true;
-        message = "\nExiting foreground-only mode\n: ";
-        write(STDOUT_FILENO, message, 32);
-        fflush(stdout);
-        
-    }
-}
-
-void handle_SIGINT(int signo)
-{
-    //char* message = "termindated by process \n";
-    char message[40];
-
-    sprintf(message, "terminated by signal %d\n", signo);
-
-    write(STDOUT_FILENO, message, 40);
-}
 
 
 int init()
 {
     // Redirct ctrl-C to handle_SIGINT
     struct sigaction SIGINT_action = {0};
-	SIGINT_action.sa_handler = handle_SIGINT;
+	SIGINT_action.sa_handler = SIG_IGN;
 	sigfillset(&SIGINT_action.sa_mask);
 	SIGINT_action.sa_flags = SA_RESTART;
     sigaction(SIGINT, &SIGINT_action, NULL);
@@ -323,6 +327,6 @@ int init()
 	sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
     welcome();
-    run(SIGINT_action);
+    run(&SIGINT_action);
 
 }
