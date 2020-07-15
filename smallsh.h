@@ -113,7 +113,7 @@ void redirectOutput(char *argv[])
 
 }
 
-int execute( char *argv[], bool background, struct sigaction sa )
+int execute( char *argv[], bool background, int *exit_status, struct sigaction sa )
 {
 
     int childStatus;
@@ -153,7 +153,7 @@ int execute( char *argv[], bool background, struct sigaction sa )
                     argv[1] = NULL;  // replace > with NULL for execvp()
                 }
                 execvp(argv[0], argv);
-                perror("execvp");
+                perror(argv[0]);
                 exit(EXIT_FAILURE);
                 break;
 
@@ -205,7 +205,7 @@ int run(struct sigaction sa_sigint)
 {
     size_t nbytes = 2048;
     char* input = malloc(nbytes);
-    int argc = 0, arg_size = 64;
+    int exit_status = 0, argc = 0, arg_size = 64;
     char* argv[512];
     bool loop = true, background = false;
 
@@ -228,10 +228,17 @@ int run(struct sigaction sa_sigint)
         {
             continue;
         }
+        // Exit Command
         else if (strcmp(argv[0], "exit") == 0)
         {
             //TODO needs to check for background processes and kill them.
             loop = false;
+        }
+        // Status Command
+        else if(strcmp(argv[0], "status") == 0) 
+        {
+	        printf("exit value %d\n", exit_status);
+	        fflush(stdout);
         }
         else 
         {
@@ -250,7 +257,7 @@ int run(struct sigaction sa_sigint)
                 // set last char* to NULL for passing to execvp
                 argv[argc] = NULL;  
                 //print_array(argc, argv);
-                execute(argv, background, sa_sigint);
+                execute(argv, background, &exit_status, sa_sigint);
         }
         //reset argc for next iteration
         argc = 0;
@@ -272,16 +279,16 @@ void handle_SIGTSTP(int signo)
     if(allowBackground == true)
     {
         allowBackground = false;
-        message = "\nEntering foreground-only mode (& is now ignored)\n";
-        write(STDOUT_FILENO, message, 50);
+        message = "\nEntering foreground-only mode (& is now ignored)\n: ";
+        write(STDOUT_FILENO, message, 52);
         fflush(stdout);
         
     } 
     else 
     {
         allowBackground = true;
-        message = "\nExiting foreground-only mode\n";
-        write(STDOUT_FILENO, message, 30);
+        message = "\nExiting foreground-only mode\n: ";
+        write(STDOUT_FILENO, message, 32);
         fflush(stdout);
         
     }
@@ -295,14 +302,6 @@ void handle_SIGINT(int signo)
     sprintf(message, "terminated by signal %d\n", signo);
 
     write(STDOUT_FILENO, message, 40);
-    raise(SIGUSR2);
-    sleep(10);
-}
-
-void handle_SIGUSR2(int signo){
-	char* message = "Caught SIGUSR2, exiting!\n";
-	write(STDOUT_FILENO, message, 26);
-	exit(0);
 }
 
 
@@ -314,13 +313,6 @@ int init()
 	sigfillset(&SIGINT_action.sa_mask);
 	SIGINT_action.sa_flags = SA_RESTART;
     sigaction(SIGINT, &SIGINT_action, NULL);
-
-    // Programmer specified handle_SIGUSR2
-    struct sigaction SIGUSR2_action = {0};    
-	SIGUSR2_action.sa_handler = handle_SIGUSR2;
-	sigfillset(&SIGUSR2_action.sa_mask);
-	SIGUSR2_action.sa_flags = 0;
-    sigaction(SIGUSR2, &SIGUSR2_action, NULL);
 
     // Redict ctrl-Z to handle_SIGSTP
     struct sigaction SIGTSTP_action = {0};
