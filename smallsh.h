@@ -25,21 +25,24 @@ void print_array(int argc, char *argv[])
     
 }
 
-void print_exit_status(int child_status)
+void print_exit_status(int spawnPid, int child_status)
 {
-	
-	if (WIFEXITED(child_status)) {
-		// exited by status
-		printf("exit value %d\n", WEXITSTATUS(child_status));
-	} else {
-		// terminated by signal
-		printf("terminated by signal %d\n", WTERMSIG(child_status));
-	}
+	if(WIFEXITED(child_status))
+        {
+            int lastExit = WEXITSTATUS(child_status);
+            fprintf(stdout, "background pid is %d is done: exit value %d\n", spawnPid, lastExit);
+            fflush(stdout);
+        }
+        else
+        {
+            int signal = WTERMSIG(child_status);
+            fprintf(stdout, "background pid is %d is done: terminated by signal %d\n", spawnPid, signal);
+            fflush(stdout);
+        }
 }
 
 void handle_SIGTSTP(int signo)
 {
-
     char *message;
 
     if(allowBackground == true)
@@ -48,7 +51,6 @@ void handle_SIGTSTP(int signo)
         message = "\nEntering foreground-only mode (& is now ignored)\n: ";
         write(STDOUT_FILENO, message, 52);
         fflush(stdout);
-        
     } 
     else 
     {
@@ -56,21 +58,8 @@ void handle_SIGTSTP(int signo)
         message = "\nExiting foreground-only mode\n: ";
         write(STDOUT_FILENO, message, 32);
         fflush(stdout);
-        
     }
 }
-
-void handle_SIGINT(int signo)
-{
-    //char* message = "termindated by process \n";
-    char message[40];
-
-    sprintf(message, "terminated by signal %d\n", signo);
-
-    write(STDOUT_FILENO, message, 40);
-}
-
-
 
 int welcome()
 {
@@ -149,7 +138,7 @@ void redirectOutput(char *argv[])
 int execute( char *argv[], bool background, int *exit_status, struct sigaction *SIGINT_action)
 {
 
-    int childStatus;
+    int child_status, numPids = 0;
 
     if(strcmp(argv[0], "cd") == 0 || strcmp(argv[0], "chdir") == 0)
     {
@@ -171,9 +160,9 @@ int execute( char *argv[], bool background, int *exit_status, struct sigaction *
             case 0:
 
                 // Reset child signal handler for SIGINT to default values.
-	            SIGINT_action->sa_handler = handle_SIGINT;
+	            SIGINT_action->sa_handler = SIG_DFL;
 	            //sigfillset((SIGINT_action->sa_mask));
-	            SIGINT_action->sa_flags = SA_RESTART;
+	            //SIGINT_action->sa_flags = 0;
                 sigaction(SIGINT, SIGINT_action, NULL);
 
                 // setup redirection of child before calling exec()
@@ -196,23 +185,41 @@ int execute( char *argv[], bool background, int *exit_status, struct sigaction *
 
                 if(background && allowBackground)
                 {
-                    pid_t actualPid = waitpid(spawnPid, &childStatus, WNOHANG);
+                    waitpid(spawnPid, &child_status, WNOHANG);
                     printf("background pid is %d\n", spawnPid);
 				    fflush(stdout);
+                    numPids++;
                 }
                 else 
                 {
-                    pid_t actualPid = waitpid(spawnPid, &childStatus, 0);
+                    waitpid(spawnPid, &child_status, 0);
+                    if(strcmp(argv[0], "kill") == 0)
+                    {
+                        //TODO, bad logic, needs to clean up;
+                    }
+                    else if(WIFEXITED(child_status))
+                    {
+                        int lastExit = WEXITSTATUS(child_status);
+                    }
+                    else
+                    {
+                        int signal = WTERMSIG(child_status);
+                        fprintf(stdout, "terminated by signal %d\n", signal);
+
+                    }
                 }
                    
            
 
             // Check for terminated child background processes.    
-            while ((spawnPid = waitpid(-1, &childStatus, WNOHANG)) > 0)
+            while ((spawnPid = waitpid(-1, &child_status, WNOHANG)) > 0)
             {
-                printf("child %d terminated\n", spawnPid);
-                print_exit_status(childStatus);
-                fflush(stdout);
+                if(numPids != 0){
+                    print_exit_status(spawnPid, child_status);
+                    fflush(stdout);
+                }
+                numPids--;
+                
             }
         }
     }
@@ -287,15 +294,25 @@ int run(struct sigaction *SIGINT_action)
             }
                 // check if command should be run in the background and set flag
                 if(strcmp(argv[argc - 1], "&") == 0)
+                {
                     background = true;
-
-                // set last char* to NULL for passing to execvp
-                argv[argc] = NULL;  
+                    //replace it with a NULL value for passing to exec
+                    //argv[argc - 1] = NULL;
+                }
+                else 
+                {
+                    // set last char* to NULL for passing to execvp
+                    argv[argc] = NULL;  
+                    
+                }    
                 //print_array(argc, argv);
                 execute(argv, background, &exit_status, SIGINT_action);
+                
+                
         }
-        //reset argc for next iteration
+        //reset argc and background for next iteration
         argc = 0;
+        background = false;
         fflush(stdout);
     }
     
@@ -311,11 +328,11 @@ int run(struct sigaction *SIGINT_action)
 
 int init()
 {
-    // Redirct ctrl-C to handle_SIGINT
+    // Redirct ctrl-C to ignore signal in parent process (shell)
     struct sigaction SIGINT_action = {0};
 	SIGINT_action.sa_handler = SIG_IGN;
 	sigfillset(&SIGINT_action.sa_mask);
-	SIGINT_action.sa_flags = SA_RESTART;
+	SIGINT_action.sa_flags = 0;
     sigaction(SIGINT, &SIGINT_action, NULL);
 
     // Redict ctrl-Z to handle_SIGSTP
