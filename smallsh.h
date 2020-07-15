@@ -12,7 +12,7 @@
 #define OPEN_FLAGS  (O_RDWR | O_CREAT | O_TRUNC)
 #define FILE_PERMS  (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)  /* rw-rw-rw- */
 
-static volatile sig_atomic_t allowBackground = 1;
+bool allowBackground = true;
 
 void print_array(int argc, char *argv[])
 {
@@ -254,9 +254,13 @@ int run(struct sigaction sa_sigint)
         }
         //reset argc for next iteration
         argc = 0;
+        fflush(stdout);
     }
     
     free(input);
+    // 0 sends SIGTERM to all processes within parent process group.
+    kill(0, SIGTERM);
+    exit(EXIT_SUCCESS);
     
 }
 
@@ -265,19 +269,21 @@ void handle_SIGTSTP(int signo)
 
     char *message;
 
-    if(allowBackground == 1)
+    if(allowBackground == true)
     {
+        allowBackground = false;
         message = "\nEntering foreground-only mode (& is now ignored)\n";
         write(STDOUT_FILENO, message, 50);
         fflush(stdout);
-        allowBackground = 0;
+        
     } 
     else 
     {
+        allowBackground = true;
         message = "\nExiting foreground-only mode\n";
         write(STDOUT_FILENO, message, 30);
         fflush(stdout);
-        allowBackground = 1;
+        
     }
 }
 
