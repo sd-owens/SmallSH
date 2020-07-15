@@ -135,7 +135,7 @@ void redirectOutput(char *argv[])
 
 }
 
-int execute( char *argv[], bool background, int *exit_status, struct sigaction *SIGINT_action)
+int execute( char *argv[], bool background, int *signal, int *exit_status, struct sigaction *SIGINT_action)
 {
 
     int child_status, numPids = 0;
@@ -153,7 +153,7 @@ int execute( char *argv[], bool background, int *exit_status, struct sigaction *
             // fork() returns -1 if it fails to spawn a new child
             case -1:
                 perror("fork() failed!");
-                exit(EXIT_FAILURE);
+                exit(1);
                 break;
 
             // spawn id is 0 in the child process.   
@@ -178,7 +178,7 @@ int execute( char *argv[], bool background, int *exit_status, struct sigaction *
                 }
                 execvp(argv[0], argv);
                 perror(argv[0]);
-                exit(EXIT_FAILURE);
+                exit(2);
                 break;
 
             default:
@@ -199,11 +199,11 @@ int execute( char *argv[], bool background, int *exit_status, struct sigaction *
                     }
                     else if(WIFEXITED(child_status))
                     {
-                        int lastExit = WEXITSTATUS(child_status);
+                        *exit_status = WEXITSTATUS(child_status);
                     }
                     else
                     {
-                        int signal = WTERMSIG(child_status);
+                        *signal = WTERMSIG(child_status);
                         fprintf(stdout, "terminated by signal %d\n", signal);
 
                     }
@@ -247,7 +247,7 @@ int run(struct sigaction *SIGINT_action)
 {
     size_t nbytes = 2048;
     char* input = malloc(nbytes);
-    int exit_status = 0, argc = 0, arg_size = 64;
+    int signal = 0, exit_status = 0, argc = 0, arg_size = 64;
     char* argv[512];
     bool loop = true, background = false;
 
@@ -279,8 +279,17 @@ int run(struct sigaction *SIGINT_action)
         // Status Command
         else if(strcmp(argv[0], "status") == 0) 
         {
-	        printf("exit value %d\n", exit_status);
-	        fflush(stdout);
+            if (signal)
+            {
+                fprintf(stderr, "terminated by signal %d\n", signal);
+                signal = 0;  //reset signal to false (0)
+                fflush(stderr);
+            }
+            else
+            {
+                fprintf(stderr, "exit value %d\n", exit_status);
+                fflush(stderr);
+            }
         }
         else 
         {
@@ -297,7 +306,7 @@ int run(struct sigaction *SIGINT_action)
                 {
                     background = true;
                     //replace it with a NULL value for passing to exec
-                    //argv[argc - 1] = NULL;
+                    argv[argc - 1] = NULL;
                 }
                 else 
                 {
@@ -306,7 +315,7 @@ int run(struct sigaction *SIGINT_action)
                     
                 }    
                 //print_array(argc, argv);
-                execute(argv, background, &exit_status, SIGINT_action);
+                execute(argv, background, &signal, &exit_status, SIGINT_action);
                 
                 
         }
@@ -322,9 +331,6 @@ int run(struct sigaction *SIGINT_action)
     exit(EXIT_SUCCESS);
     
 }
-
-
-
 
 int init()
 {
