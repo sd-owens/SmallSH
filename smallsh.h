@@ -250,6 +250,9 @@ int run(struct sigaction *SIGINT_action)
     int signal = 0, exit_status = 0, argc = 0, arg_size = 64;
     char* argv[512];
     bool loop = true, background = false;
+    
+    char pid[10];
+    sprintf(pid, "%d", getpid());
 
     while(loop)
     {
@@ -299,23 +302,28 @@ int run(struct sigaction *SIGINT_action)
                 argv[argc] = (char *) malloc(sizeof(char) * arg_size);
                 assert(argv[argc] != NULL);
                 argv[argc] = strtok(NULL, " ");
+                if(argv[argc] != NULL && strcmp(argv[argc], "$$") == 0)
+                {
+                    argv[argc] = pid;
+                }
 
             }
-                // check if command should be run in the background and set flag
-                if(strcmp(argv[argc - 1], "&") == 0)
-                {
-                    background = true;
-                    //replace it with a NULL value for passing to exec
-                    argv[argc - 1] = NULL;
-                }
-                else 
-                {
-                    // set last char* to NULL for passing to execvp
-                    argv[argc] = NULL;  
-                    
-                }    
-                //print_array(argc, argv);
-                execute(argv, background, &signal, &exit_status, SIGINT_action);
+
+            // check if command should be run in the background and set flag
+            if(strcmp(argv[argc - 1], "&") == 0)
+            {
+                background = true;
+                //replace it with a NULL value for passing to exec
+                argv[argc - 1] = NULL;
+            }
+            else 
+            {
+                // set last char* to NULL for passing to execvp
+                argv[argc] = NULL;  
+                
+            }    
+            //print_array(argc, argv);
+            execute(argv, background, &signal, &exit_status, SIGINT_action);
                 
                 
         }
