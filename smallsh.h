@@ -9,8 +9,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define OPEN_FLAGS  (O_RDWR | O_CREAT | O_TRUNC)
-#define FILE_PERMS  (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)  /* rw-rw-rw- */
+#define OPEN_OUTPUT  (O_RDWR | O_CREAT | O_TRUNC)
+#define OPEN_INPUT   (O_RDONLY)
+#define FILE_PERMS   (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)  /* rw-rw-rw- */
 
 bool allowBackground = true;
 
@@ -97,29 +98,29 @@ int changeDir(char *argv[])
     }
 
 }
-//TODO needs to handle input redirection
-void redirectInput(char *argv[])
+
+void redirectInput(char *argv)
 {
-    // int targetFD = open(argv[2], OPEN_FLAGS, FILE_PERMS);
+    int targetFD = open(argv, OPEN_INPUT);
 
-    // if(targetFD == -1)
-    // {
-    //     perror("open()");
-    //     exit(1);
-    // }
+    if(targetFD == -1)
+    {
+        fprintf(stderr, "cannot open %s for input\n", argv);
+        exit(1);
+    }
 
-    // int output = dup2(targetFD, 1);  //redirect stdout to write to targetFD  
-    // if (output == -1) {
-    //     perror("dup2"); 
-    //     exit(2); 
-    // }
+    int input = dup2(targetFD, 0);  //redirect stdin to read from targetFD  
+    if (input == -1) {
+        perror("source dup2()"); 
+        exit(1); 
+    }
 
 }
 
-void redirectOutput(char *argv[])
+void redirectOutput(char *argv)
 {
 
-    int targetFD = open(argv[2], OPEN_FLAGS, FILE_PERMS);
+    int targetFD = open(argv, OPEN_OUTPUT, FILE_PERMS);
 
     if(targetFD == -1)
     {
@@ -129,8 +130,8 @@ void redirectOutput(char *argv[])
 
     int output = dup2(targetFD, 1);  //redirect stdout to write to targetFD  
     if (output == -1) {
-        perror("dup2"); 
-        exit(2); 
+        perror("source dup2"); 
+        exit(1); 
     }
 
 }
@@ -139,6 +140,7 @@ int execute( char *argv[], bool background, int *signal, int *bg_pids, int *exit
 {
 
     int child_status;
+    int redirect_flag = 0;
 
     if(strcmp(argv[0], "cd") == 0 || strcmp(argv[0], "chdir") == 0)
     {
@@ -161,21 +163,28 @@ int execute( char *argv[], bool background, int *signal, int *bg_pids, int *exit
 
                 // Reset child signal handler for SIGINT to default values.
 	            SIGINT_action->sa_handler = SIG_DFL;
-	            //sigfillset((SIGINT_action->sa_mask));
-	            //SIGINT_action->sa_flags = 0;
                 sigaction(SIGINT, SIGINT_action, NULL);
 
-                // setup redirection of child before calling exec()
-                if(argv[1] != NULL && strcmp(argv[1], ">") == 0)
+                int i = 0;
+                while(argv[i + 1] != NULL)
                 {
-                    redirectOutput(argv);
-                    argv[1] = NULL;  // replace > with NULL for execvp()
-                } 
-                else if (argv[1] != NULL && strcmp(argv[1], "<") == 0)
-                {
-                    redirectInput(argv);
-                    argv[1] = NULL;  // replace > with NULL for execvp()
+                    if(strcmp(argv[i], ">") == 0)
+                    {
+                        redirectOutput(argv[i + 1]);
+                        redirect_flag = 1;
+                    }
+                    else if(strcmp(argv[i], "<") == 0)
+                    {
+                        redirectInput(argv[i + 1]);
+                        redirect_flag = 1;
+                    }
+                    i++;
                 }
+                if(redirect_flag)
+                {
+                    argv[1] = NULL;  // terminate argv[1] for passing to exec
+                }
+
                 execvp(argv[0], argv);
                 perror(argv[0]);
                 exit(2);
@@ -263,7 +272,7 @@ int run(struct sigaction *SIGINT_action)
         // skip lines with comments or blank lines.
         if(strcmp(argv[0], "#") == 0 || strcmp(argv[0], "\n") == 0)
         {
-            continue;
+            // do nothing...
         }
         // Exit Command
         else if (strcmp(argv[0], "exit") == 0)
