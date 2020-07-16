@@ -135,10 +135,10 @@ void redirectOutput(char *argv[])
 
 }
 
-int execute( char *argv[], bool background, int *signal, int *exit_status, struct sigaction *SIGINT_action)
+int execute( char *argv[], bool background, int *signal, int *bg_pids, int *exit_status, struct sigaction *SIGINT_action)
 {
 
-    int child_status, numPids = 0;
+    int child_status;
 
     if(strcmp(argv[0], "cd") == 0 || strcmp(argv[0], "chdir") == 0)
     {
@@ -188,7 +188,7 @@ int execute( char *argv[], bool background, int *signal, int *exit_status, struc
                     waitpid(spawnPid, &child_status, WNOHANG);
                     printf("background pid is %d\n", spawnPid);
 				    fflush(stdout);
-                    numPids++;
+                    (*bg_pids)++;
                 }
                 else 
                 {
@@ -204,23 +204,13 @@ int execute( char *argv[], bool background, int *signal, int *exit_status, struc
                     else
                     {
                         *signal = WTERMSIG(child_status);
-                        fprintf(stdout, "terminated by signal %d\n", signal);
+                        fprintf(stdout, "terminated by signal %d\n", *signal);
 
                     }
                 }
                    
            
-
-            // Check for terminated child background processes.    
-            while ((spawnPid = waitpid(-1, &child_status, WNOHANG)) > 0)
-            {
-                if(numPids != 0){
-                    print_exit_status(spawnPid, child_status);
-                    fflush(stdout);
-                }
-                numPids--;
-                
-            }
+            
         }
     }
 
@@ -250,6 +240,8 @@ int run(struct sigaction *SIGINT_action)
     int signal = 0, exit_status = 0, argc = 0, arg_size = 64;
     char* argv[512];
     bool loop = true, background = false;
+    int child_status, bg_pids = 0;
+    pid_t childPid;
     
     char pid[10];
     sprintf(pid, "%d", getpid());
@@ -361,9 +353,20 @@ int run(struct sigaction *SIGINT_action)
                 
             }    
             //print_array(argc, argv);
-            execute(argv, background, &signal, &exit_status, SIGINT_action);
+            execute(argv, background, &signal, &bg_pids, &exit_status, SIGINT_action);
                 
                 
+        }
+        // TODO this needs move to run while loop
+        // Check for terminated child background processes.    
+        while ((childPid = waitpid(-1, &child_status, WNOHANG)) > 0)
+        {
+            if(bg_pids != 0){
+                print_exit_status(childPid, child_status);
+                fflush(stdout);
+            }
+            bg_pids--;
+            
         }
         //reset argc and background for next iteration
         argc = 0;
