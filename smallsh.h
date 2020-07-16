@@ -302,9 +302,47 @@ int run(struct sigaction *SIGINT_action)
                 argv[argc] = (char *) malloc(sizeof(char) * arg_size);
                 assert(argv[argc] != NULL);
                 argv[argc] = strtok(NULL, " ");
-                if(argv[argc] != NULL && strcmp(argv[argc], "$$") == 0)
+                // if(argv[argc] != NULL && strcmp(argv[argc], "$$") == 0)
+                // {
+                //     argv[argc] = pid;
+                // }
+                if(argv[argc] != NULL)
                 {
-                    argv[argc] = pid;
+                    char* str = argv[argc];
+                    int shift_r = strlen(pid);
+
+                    for(int i = 0; i < strlen(str); i++)
+                    {
+                        if(str[i] == '$' && str[i+1] == '$')
+                        {
+                            int len_n = strlen(str) + shift_r - 2;
+                            int index_s = i;
+                            char* expand_str = (char *)malloc(sizeof(char) * len_n);
+
+                            for(int j = 0; j < len_n; j++)
+                            {
+                                if (j < index_s || j > index_s + shift_r)
+                                {
+                                    expand_str[j] = str[j];
+                                }
+                                else
+                                {
+                                    for(int k = 0; k < shift_r; k++)
+                                    {
+                                    expand_str[j] = pid[k];
+                                    j++;
+                                    }
+                                }
+
+                            }
+                            expand_str[len_n] = '\0';
+                            
+                            argv[argc] = expand_str;
+                            //free(str);
+                            str = NULL;
+                            break;
+                        }
+                    }
                 }
 
             }
