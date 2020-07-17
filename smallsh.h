@@ -17,13 +17,11 @@ bool allowBackground = true;
 
 void print_array(int argc, char *argv[])
 {
-
     for (int i = 0; i < argc; i++)
     {
         fprintf(stdout, "argv[%d] = %s\n", i, argv[i]);
         fflush(stdout);
     }
-    
 }
 
 void print_exit_status(int spawnPid, int child_status)
@@ -65,24 +63,19 @@ void handle_SIGTSTP(int signo)
 int welcome()
 {
     system("clear");
-
     fprintf(stdout, "\nWelcome to:\n");   
-
     fprintf(stdout, " _____                 _ _   _____ _          _ _\n" 
                     "/  ___|               | | | /  ___| |        | | |\n"
                     "\\ `--. _ __ ___   __ _| | | \\ `--.| |__   ___| | |\n"
                     " `--. \\ '_ ` _ \\ / _` | | |  `--. \\ '_ \\ / _ \\ | |\n"
                     "/\\__/ / | | | | | (_| | | | /\\__/ / | | |  __/ | |\n"
-                    "\\____/|_| |_| |_|\\__,_|_|_| \\____/|_| |_|\\___|_|_|\n");
-                                                  
+                    "\\____/|_| |_| |_|\\__,_|_|_| \\____/|_| |_|\\___|_|_|\n");                                      
     fprintf(stdout, "\nA small, lighter shell similar to Bourne Again SHell!\n\n");                                             
-
     fflush(stdout);
 }
 
 int changeDir(char *argv[])
 {
-
     if(argv[1] == NULL || strcmp(argv[1], "~") == 0)
         argv[1] = getenv("HOME");
 
@@ -96,7 +89,6 @@ int changeDir(char *argv[])
         default:
             return 0;
     }
-
 }
 
 void redirectInput(char *argv)
@@ -119,7 +111,6 @@ void redirectInput(char *argv)
 
 void redirectOutput(char *argv)
 {
-
     int targetFD = open(argv, OPEN_OUTPUT, FILE_PERMS);
 
     if(targetFD == -1)
@@ -127,13 +118,11 @@ void redirectOutput(char *argv)
         perror("open()");
         exit(1);
     }
-
     int output = dup2(targetFD, 1);  //redirect stdout to write to targetFD  
     if (output == -1) {
         perror("source dup2"); 
         exit(1); 
     }
-
 }
 
 int execute( char *argv[], bool background, int *signal, int *bg_pids, int *exit_status, struct sigaction *SIGINT_action)
@@ -217,13 +206,8 @@ int execute( char *argv[], bool background, int *signal, int *bg_pids, int *exit
 
                     }
                 }
-                   
-           
-            
         }
     }
-
-
     return(0);
 }
 
@@ -238,9 +222,7 @@ int parse(char *input, char *argv[])
         // look for redirection
         // look for $$ for expansion to process ID
 
-
 }
-
 
 int run(struct sigaction *SIGINT_action)
 {
@@ -303,10 +285,7 @@ int run(struct sigaction *SIGINT_action)
                 argv[argc] = (char *) malloc(sizeof(char) * arg_size);
                 assert(argv[argc] != NULL);
                 argv[argc] = strtok(NULL, " ");
-                // if(argv[argc] != NULL && strcmp(argv[argc], "$$") == 0)
-                // {
-                //     argv[argc] = pid;
-                // }
+                
                 if(argv[argc] != NULL)
                 {
                     char* str = argv[argc];
@@ -334,7 +313,6 @@ int run(struct sigaction *SIGINT_action)
                                     j++;
                                     }
                                 }
-
                             }
                             expand_str[len_n] = '\0';
                             
@@ -345,9 +323,7 @@ int run(struct sigaction *SIGINT_action)
                         }
                     }
                 }
-
             }
-
             // check if command should be run in the background and set flag
             if(strcmp(argv[argc - 1], "&") == 0)
             {
@@ -358,13 +334,10 @@ int run(struct sigaction *SIGINT_action)
             else 
             {
                 // set last char* to NULL for passing to execvp
-                argv[argc] = NULL;  
-                
+                argv[argc] = NULL;     
             }    
             //print_array(argc, argv);
             execute(argv, background, &signal, &bg_pids, &exit_status, SIGINT_action);
-                
-                
         }
         // TODO this needs move to run while loop
         // Check for terminated child background processes.    
@@ -375,19 +348,16 @@ int run(struct sigaction *SIGINT_action)
                 fflush(stdout);
             }
             bg_pids--;
-            
         }
         //reset argc and background for next iteration
         argc = 0;
         background = false;
         fflush(stdout);
     }
-    
     free(input);
     // 0 sends SIGTERM to all processes within parent process group.
     kill(0, SIGTERM);
     exit(EXIT_SUCCESS);
-    
 }
 
 int init()
