@@ -75,7 +75,7 @@ int welcome()
                     "/\\__/ / | | | | | (_| | | | /\\__/ / | | |  __/ | |\n"
                     "\\____/|_| |_| |_|\\__,_|_|_| \\____/|_| |_|\\___|_|_|\n");
                                                   
-    fprintf(stdout, "\nA lighter shell, similar to the Bourne Again SHell!\n\n");                                             
+    fprintf(stdout, "\nA small, lighter shell similar to Bourne Again SHell!\n\n");                                             
 
     fflush(stdout);
 }
