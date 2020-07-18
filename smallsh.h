@@ -216,40 +216,121 @@ int freeMem()
 
 }
 
-int parse(char *input, char *argv[])
+void expandVars(char **argv)
+{
+
+    // get process id for $$ variable expansion.
+    char pid[10], *orig_str;
+    sprintf(pid, "%d", getpid());
+
+    int argc = 0;
+    // **** Variable Expansion for $$ into Process ID of Parent ****
+    while (argv[argc] != NULL)
+    {
+        orig_str = argv[argc];
+        int shift_r = strlen(pid);
+
+        for(int i = 0; i < strlen(orig_str); i++)
+        {
+            if(orig_str[i] == '$' && orig_str[i+1] == '$')
+            {
+                int len_n = strlen(orig_str) + shift_r - 2; 
+                int index_s = i;
+                char expand_str[len_n];
+
+                for(int j = 0; j < len_n; j++)
+                {
+                    if (j < index_s || j > index_s + shift_r)
+                    {
+                        expand_str[j] = orig_str[j];
+                    }
+                    else
+                    {
+                        for(int k = 0; k < shift_r; k++)
+                        {
+                        expand_str[j] = pid[k];
+                        j++;
+                        }
+                    }
+                }
+                expand_str[len_n] = '\0';
+                strcpy(orig_str, expand_str);
+                break;
+            }
+        }
+        argc++;
+    }
+}
+
+int getInput(char **argv, bool *background)
 {
         // look for &
         // look for redirection
         // look for $$ for expansion to process ID
+    size_t nbytes = 2048;
+    char* input = (char *) malloc(sizeof(char) * nbytes);
+    int argc = 0;
 
+    fprintf(stdout, ": ");
+    fflush(stdout);
+
+    getline(&input, &nbytes, stdin);    // might need to change to newfd  
+
+    strtok(input, "\n");  // strip off newline char from end of user input.
+
+    argv[argc] = strtok(input, " ");
+   
+
+    while (argv[argc] != NULL)
+    {
+        argc++;
+        argv[argc] = strtok(NULL, " ");
+        
+    }
+
+    // check if command should be run in the background and set flag
+    if(strcmp(argv[argc - 1], "&") == 0)
+    {
+        *background = true;
+        //replace it with a NULL value for passing to exec
+        argv[argc - 1] = NULL;
+    }
+    else 
+    {
+        // set last char* to NULL for passing to execvp
+        argv[argc] = NULL;     
+    }    
+    //print_array(argc, argv);
+
+    free(input);
+    input = NULL;
 }
 
 int run(struct sigaction *SIGINT_action)
 {
-    size_t nbytes = 2048;
-    char* input = malloc(nbytes);
     int signal = 0, exit_status = 0, argc = 0, arg_size = 64;
-    char* argv[512];
     bool loop = true, background = false;
     int child_status, bg_pids = 0;
     pid_t childPid;
     
-    char pid[10];
-    sprintf(pid, "%d", getpid());
+    char** argv = (char ** )malloc(sizeof(char *) * 512);  // up to max of 512 arguments.
+    if(argv == NULL){
+        fprintf(stderr, "insufficient memory available\n");
+        exit(1);
+    }
+    for(int i = 0; i < 512; i++){
+
+        argv[i] = (char *)malloc(sizeof(char) * 64);  // each arg max of 64 characters.
+        if(argv == NULL){
+        fprintf(stderr, "insufficient memory available\n");
+        exit(1);
+        }
+    }
 
     while(loop)
     {
-        fprintf(stdout, ": ");
-        fflush(stdout);
-
-        getline(&input, &nbytes, stdin);    // might need to change to newfd  
-
-        strtok(input, "\n");  // strip off newline char from end of user input.
-
-        argv[0] = (char *) malloc(sizeof(char) * arg_size);
-        assert(*argv != NULL);
-
-        argv[argc] = strtok(input, " ");  // break up user input into tokens seperate by spaces.
+        getInput(argv, &background);
+        expandVars(argv);
 
         // skip lines with comments or blank lines.
         if(strcmp(argv[0], "#") == 0 || strcmp(argv[0], "\n") == 0)
@@ -277,69 +358,10 @@ int run(struct sigaction *SIGINT_action)
                 fflush(stderr);
             }
         }
-        else 
+        else  // Execute non-built in command by system call.
         {
-            while (argv[argc] != NULL)
-            {
-                argc++;
-                argv[argc] = (char *) malloc(sizeof(char) * arg_size);
-                assert(argv[argc] != NULL);
-                argv[argc] = strtok(NULL, " ");
-                
-                if(argv[argc] != NULL)
-                {
-                    char* str = argv[argc];
-                    int shift_r = strlen(pid);
-
-                    for(int i = 0; i < strlen(str); i++)
-                    {
-                        if(str[i] == '$' && str[i+1] == '$')
-                        {
-                            int len_n = strlen(str) + shift_r - 2;
-                            int index_s = i;
-                            char* expand_str = (char *)malloc(sizeof(char) * len_n);
-
-                            for(int j = 0; j < len_n; j++)
-                            {
-                                if (j < index_s || j > index_s + shift_r)
-                                {
-                                    expand_str[j] = str[j];
-                                }
-                                else
-                                {
-                                    for(int k = 0; k < shift_r; k++)
-                                    {
-                                    expand_str[j] = pid[k];
-                                    j++;
-                                    }
-                                }
-                            }
-                            expand_str[len_n] = '\0';
-                            
-                            argv[argc] = expand_str;
-                            //free(str);
-                            str = NULL;
-                            break;
-                        }
-                    }
-                }
-            }
-            // check if command should be run in the background and set flag
-            if(strcmp(argv[argc - 1], "&") == 0)
-            {
-                background = true;
-                //replace it with a NULL value for passing to exec
-                argv[argc - 1] = NULL;
-            }
-            else 
-            {
-                // set last char* to NULL for passing to execvp
-                argv[argc] = NULL;     
-            }    
-            //print_array(argc, argv);
             execute(argv, background, &signal, &bg_pids, &exit_status, SIGINT_action);
         }
-        // TODO this needs move to run while loop
         // Check for terminated child background processes.    
         while ((childPid = waitpid(-1, &child_status, WNOHANG)) > 0)
         {
@@ -349,13 +371,12 @@ int run(struct sigaction *SIGINT_action)
             }
             bg_pids--;
         }
-        //reset argc and background for next iteration
-        argc = 0;
+        //reset background flag for next iteration
         background = false;
-        fflush(stdout);
+        
     }
-    free(input);
     // 0 sends SIGTERM to all processes within parent process group.
+    //TODO freeMem(argv);
     kill(0, SIGTERM);
     exit(EXIT_SUCCESS);
 }

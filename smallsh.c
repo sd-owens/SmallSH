@@ -5,5 +5,5 @@ int main ()
 {
     init();
 
-    exit(EXIT_SUCCESS);
+    return(0);
 }
