@@ -264,9 +264,6 @@ void expandVars(char **argv)
 
 int getInput(char **argv, bool *background)
 {
-        // look for &
-        // look for redirection
-        // look for $$ for expansion to process ID
     size_t nbytes = 2048;
     char* input = (char *) malloc(sizeof(char) * nbytes);
     int argc = 0;
@@ -280,14 +277,12 @@ int getInput(char **argv, bool *background)
 
     argv[argc] = strtok(input, " ");
    
-
     while (argv[argc] != NULL)
     {
         argc++;
         argv[argc] = strtok(NULL, " ");
         
     }
-
     // check if command should be run in the background and set flag
     if(strcmp(argv[argc - 1], "&") == 0)
     {
@@ -304,6 +299,21 @@ int getInput(char **argv, bool *background)
 
     free(input);
     input = NULL;
+}
+
+void statusCmd(int* signal, int *exit_status)
+{
+    if (signal)
+        {
+            fprintf(stderr, "terminated by signal %d\n", *signal);
+            *signal = 0;  //reset signal to false (0)
+            fflush(stderr);
+        }
+        else
+        {
+            fprintf(stderr, "exit value %d\n", *exit_status);
+            fflush(stderr);
+        }
 }
 
 int run(struct sigaction *SIGINT_action)
@@ -346,17 +356,7 @@ int run(struct sigaction *SIGINT_action)
         // Status Command
         else if(strcmp(argv[0], "status") == 0) 
         {
-            if (signal)
-            {
-                fprintf(stderr, "terminated by signal %d\n", signal);
-                signal = 0;  //reset signal to false (0)
-                fflush(stderr);
-            }
-            else
-            {
-                fprintf(stderr, "exit value %d\n", exit_status);
-                fflush(stderr);
-            }
+            statusCmd(&signal, &exit_status);
         }
         else  // Execute non-built in command by system call.
         {
@@ -373,7 +373,6 @@ int run(struct sigaction *SIGINT_action)
         }
         //reset background flag for next iteration
         background = false;
-        
     }
     // 0 sends SIGTERM to all processes within parent process group.
     //TODO freeMem(argv);
