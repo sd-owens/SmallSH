@@ -316,6 +316,21 @@ void statusCmd(int* signal, int *exit_status)
         }
 }
 
+void checkBackgroundPids(int *bgPids)
+{
+    pid_t pid;
+    int childStatus;
+    // Check for terminated child background processes.    
+    while ((pid = waitpid(-1, &childStatus, WNOHANG)) > 0)
+    {
+        if(*bgPids != 0){
+            print_exit_status(pid, childStatus);
+            fflush(stdout);
+        }
+        (*bgPids)--;
+    }
+}
+
 int run(struct sigaction *SIGINT_action)
 {
     int signal = 0, exit_status = 0, argc = 0, arg_size = 64;
@@ -362,16 +377,8 @@ int run(struct sigaction *SIGINT_action)
         {
             execute(argv, background, &signal, &bg_pids, &exit_status, SIGINT_action);
         }
-        // Check for terminated child background processes.    
-        while ((childPid = waitpid(-1, &child_status, WNOHANG)) > 0)
-        {
-            if(bg_pids != 0){
-                print_exit_status(childPid, child_status);
-                fflush(stdout);
-            }
-            bg_pids--;
-        }
-        //reset background flag for next iteration
+        
+        checkBackgroundPids(&bg_pids);
         background = false;
     }
     // 0 sends SIGTERM to all processes within parent process group.
